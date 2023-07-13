@@ -5,6 +5,7 @@ import random
 import numpy as np
 from skimage.util import random_noise
 from PIL import Image, ImageEnhance, ImageFilter
+from matplotlib import pyplot as plt
 
 
 class Data_Augmentation:
@@ -21,11 +22,13 @@ class Data_Augmentation:
         for IMAGE_DIR in IMAGE_DIRS:
             data = {}
             img_name = IMAGE_DIR.split("/")[-1].split(".")[0]
+            
             if (os.path.exists(os.path.join(LABEL_FOLDER, img_name+".txt"))):
                 data["image"] = cv2.cvtColor(cv2.imread(IMAGE_DIR),cv2.COLOR_BGR2RGB)
-                data["bounding_boxes"] = self.load_label(
-                    os.path.join(LABEL_FOLDER, img_name+".txt"))
+                data["bounding_boxes"] = self.load_label(os.path.join(LABEL_FOLDER, img_name+".txt"))
             self.dataset.append(data)
+            
+        print( "Dataset size: ", len(self.dataset),)
 
     def load_label(self, DIR):
         labels = []
@@ -51,13 +54,53 @@ class Data_Augmentation:
             self.saturation,
             self.gaussian_blur
         ]
+        
+        print("target folder: ", self.TARGET_FOLDER)
+        IMAGE_FOLDER = os.path.join(self.TARGET_FOLDER, "images")
+        LABELS_FOLDER = os.path.join(self.TARGET_FOLDER, "labels")
+        
+        if (not os.path.exists(self.TARGET_FOLDER)):
+            os.mkdir(self.TARGET_FOLDER)
+        
+        if (not os.path.exists(IMAGE_FOLDER)):
+            os.mkdir(IMAGE_FOLDER)
+            
+        if (not os.path.exists(LABELS_FOLDER)):
+            os.mkdir(LABELS_FOLDER)
+
+        
+        print('Saving data to ' + self.TARGET_FOLDER)
+
+        counter = 0
+        
         for data in self.dataset:
-            self.augmented_dataset.append(data)
+            self.augmented_dataset.append( data )
+            
+            cv2.imwrite(os.path.join(IMAGE_FOLDER, str(counter)+".jpg"), cv2.cvtColor(data["image"], cv2.COLOR_RGB2BGR))
+            self.save_bb(os.path.join(LABELS_FOLDER, str(counter)+".txt"), data["bounding_boxes"])
+            
+            counter += 1
+            
             for i in range(n_processing):
+                # seleziono uno dei metodi che fanno la modifica a random
                 operation = random.choice(operations)
+                
+                #lo salvo in un array della classe
                 self.operations.append(operation)
-                new_data = operation(data)
-                self.augmented_dataset.append(new_data)
+                
+                try:                          
+                    new_data = operation(data)                                    
+                    self.augmented_dataset.append(new_data)
+
+                    cv2.imwrite(os.path.join(IMAGE_FOLDER, str(counter)+".jpg"), cv2.cvtColor(new_data["image"], cv2.COLOR_RGB2BGR))
+                    self.save_bb(os.path.join(LABELS_FOLDER, str(counter)+".txt"), new_data["bounding_boxes"])                    
+                    counter += 1
+                except Exception as e:      
+                    print("Error cosing... image nr. :  ", e)
+                          
+                
+
+
 
     def save_data(self):
         if (not os.path.exists(self.TARGET_FOLDER)):
@@ -70,10 +113,13 @@ class Data_Augmentation:
         print('Saving data to "./' + self.TARGET_FOLDER + '"...')
 
         for i, data in enumerate(self.augmented_dataset):
-            cv2.imwrite(os.path.join(
-                IMAGE_FOLDER, str(i)+".jpg"), cv2.cvtColor(data["image"],cv2.COLOR_RGB2BGR))
-            self.save_bb(os.path.join(LABELS_FOLDER, str(
-                i)+".txt"), data["bounding_boxes"])
+            try:
+                cv2.imwrite(os.path.join(IMAGE_FOLDER, str(i)+".jpg"), cv2.cvtColor(data["image"], cv2.COLOR_RGB2BGR))
+                self.save_bb(os.path.join(LABELS_FOLDER, str(i)+".txt"), data["bounding_boxes"])
+            except:       
+                print("Error saving image nr. :  ", i)
+                
+                
 
     def save_bb(self, DIR_NAME, labels):
         with open(DIR_NAME, "w+") as f:
@@ -175,3 +221,35 @@ class Data_Augmentation:
         new_data["image"] = np.array(new_image)
         new_data["bounding_boxes"] = data["bounding_boxes"]
         return new_data
+        
+    def draw_image(self, data, plot, show=True):
+        img = data["image"]
+        dh, dw, _ = img.shape
+        boxes=data["bounding_boxes"]
+        
+        for bb in boxes:
+            x=bb["x_center"]
+            y=bb["y_center"]
+            w=bb["width"]
+            h=bb["height"]
+            l = int((x - w / 2) * dw)
+            r = int((x + w / 2) * dw)
+            t = int((y - h / 2) * dh)
+            b = int((y + h / 2) * dh)
+            if l < 0:
+                l = 0
+            if r > dw - 1:
+                r = dw - 1
+            if t < 0:
+                t = 0
+            if b > dh - 1:
+                b = dh - 1
+            cv2.rectangle(img, (l, t), (r, b), (0, 0, 255), 4)
+        #print("x,y,w,h:",x,y,w,h)
+        if(show):
+            # Update the plot with the new image
+            plot.set_data(img)
+    #        Pause the plot for a short duration to display the updated image
+            plt.pause(0.001)
+        else:
+            return img
