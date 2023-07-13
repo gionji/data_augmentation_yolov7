@@ -17,4 +17,4 @@ if __name__ == "__main__":
     data_augmentation.load_data(
         args.images, args.labels)
     data_augmentation.run(n_processing=int(args.nprocess))
-    data_augmentation.save_data()
+    #data_augmentation.save_data()
